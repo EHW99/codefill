@@ -12,7 +12,7 @@ import fcntl
 from pathlib import Path
 
 DATA_FILE = Path(__file__).parent.parent / "data" / "baekjoon" / "problems_with_github_solutions.json"
-API_KEY = "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"
+API_KEY = "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"
 API_URL = "https://openrouter.ai/api/v1/chat/completions"
 
 def generate_solution(problem: dict) -> list:
