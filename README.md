@@ -181,7 +181,7 @@ git push origin deploy
 
 ## License
 
-This project is private and proprietary.
+This project is private and proprietary..
 
 ## Contact
 
