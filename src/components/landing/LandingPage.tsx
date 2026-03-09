@@ -232,7 +232,7 @@ export function LandingPage() {
               <span className="font-bold">CodeFill</span>
             </div>
             <p className="text-sm text-muted-foreground">
-              © 2024 CodeFill. All rights reserved.
+              © 2026 CodeFill. All rights reserved.
             </p>
           </div>
         </div>

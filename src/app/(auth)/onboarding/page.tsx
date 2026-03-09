@@ -33,6 +33,8 @@ import {
   Link as LinkIcon,
   Check,
   X,
+  Mail,
+  MessageCircle,
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useDebounce } from '@/hooks/useDebounce';
@@ -104,12 +106,14 @@ const ALGORITHM_OPTIONS = [
   { value: 'string', label: '문자열' },
 ];
 
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+
 export default function OnboardingPage() {
   const router = useRouter();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const [step, setStep] = useState(1);
+  const [step, setStep] = useState(0); // 0 = 가입 방식 선택
   const totalSteps = 5;
 
   // Email/Nickname availability check states
@@ -206,6 +210,8 @@ export default function OnboardingPage() {
 
   const canProceed = () => {
     switch (step) {
+      case 0:
+        return false; // Selection step uses its own buttons
       case 1:
         return !!watchedFields.status;
       case 2:
@@ -236,7 +242,7 @@ export default function OnboardingPage() {
   };
 
   const handleBack = () => {
-    setStep((s) => Math.max(s - 1, 1));
+    setStep((s) => Math.max(s - 1, s === 1 ? 0 : 1));
   };
 
   const toggleAlgorithm = (algo: string) => {
@@ -352,6 +358,112 @@ export default function OnboardingPage() {
 
   const renderStepContent = () => {
     switch (step) {
+      case 0:
+        return (
+          <motion.div
+            key="step0"
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -20 }}
+            className="space-y-4"
+          >
+            <div className="text-center space-y-2 pb-1">
+              <h2 className="text-lg font-semibold">무료로 시작하기</h2>
+              <p className="text-sm text-muted-foreground">
+                가입하고 맞춤 코딩테스트 학습을 시작하세요
+              </p>
+              <div className="flex items-center justify-center gap-3 pt-1">
+                <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-medium text-primary">
+                  <Check className="h-3 w-3" />
+                  무료
+                </span>
+                <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-medium text-primary">
+                  <Check className="h-3 w-3" />
+                  맞춤 추천
+                </span>
+                <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-medium text-primary">
+                  <Check className="h-3 w-3" />
+                  AI 힌트
+                </span>
+              </div>
+            </div>
+
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full bg-[#FEE500] text-[#000000] hover:bg-[#FDD835] border-[#FEE500] hover:border-[#FDD835]"
+              onClick={() => {
+                window.location.href = `${API_BASE_URL}/auth/kakao/login`;
+              }}
+            >
+              <MessageCircle className="mr-2 h-4 w-4" />
+              카카오로 시작하기
+            </Button>
+
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full bg-white text-gray-700 hover:bg-gray-100 hover:text-gray-900 border-gray-300"
+              onClick={() => {
+                window.location.href = `${API_BASE_URL}/auth/google/login`;
+              }}
+            >
+              <svg className="mr-2 h-4 w-4" viewBox="0 0 24 24">
+                <path
+                  fill="#4285F4"
+                  d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+                />
+                <path
+                  fill="#34A853"
+                  d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                />
+                <path
+                  fill="#FBBC05"
+                  d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
+                />
+                <path
+                  fill="#EA4335"
+                  d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
+                />
+              </svg>
+              구글로 시작하기
+            </Button>
+
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full bg-[#24292f] text-white hover:bg-[#1b1f23] border-[#24292f] hover:border-[#1b1f23]"
+              onClick={() => {
+                window.location.href = `${API_BASE_URL}/auth/github/login`;
+              }}
+            >
+              <svg className="mr-2 h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+              </svg>
+              GitHub로 시작하기
+            </Button>
+
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <span className="w-full border-t border-border" />
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-card px-2 text-muted-foreground">또는</span>
+              </div>
+            </div>
+
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full"
+              onClick={() => setStep(1)}
+            >
+              <Mail className="mr-2 h-4 w-4" />
+              이메일로 가입
+            </Button>
+          </motion.div>
+        );
+
       case 1:
         return (
           <motion.div
@@ -754,7 +866,7 @@ export default function OnboardingPage() {
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="w-full max-w-md space-y-6"
+        className={`w-full space-y-6 ${step === 0 ? 'max-w-sm' : 'max-w-md'}`}
       >
         {/* Logo */}
         <div className="text-center">
@@ -770,31 +882,35 @@ export default function OnboardingPage() {
           </Link>
         </div>
 
-        {/* Progress indicator */}
-        <div className="flex items-center justify-center gap-2">
-          {Array.from({ length: totalSteps }).map((_, i) => (
-            <div
-              key={i}
-              className={`h-2 rounded-full transition-all ${
-                i + 1 <= step ? 'w-8 bg-primary' : 'w-2 bg-muted'
-              }`}
-            />
-          ))}
-        </div>
+        {/* Progress indicator - only show for steps 1-5 */}
+        {step > 0 && (
+          <>
+            <div className="flex items-center justify-center gap-2">
+              {Array.from({ length: totalSteps }).map((_, i) => (
+                <div
+                  key={i}
+                  className={`h-2 rounded-full transition-all ${
+                    i + 1 <= step ? 'w-8 bg-primary' : 'w-2 bg-muted'
+                  }`}
+                />
+              ))}
+            </div>
 
-        {/* Step indicator */}
-        <p className="text-center text-sm text-muted-foreground">
-          {step} / {totalSteps}
-        </p>
+            {/* Step indicator */}
+            <p className="text-center text-sm text-muted-foreground">
+              {step} / {totalSteps}
+            </p>
+          </>
+        )}
 
         {/* Content */}
         <div className="rounded-xl border border-border bg-card p-6">
           <AnimatePresence mode="wait">{renderStepContent()}</AnimatePresence>
         </div>
 
-        {/* Navigation */}
-        <div className="flex gap-2">
-          {step > 1 && (
+        {/* Navigation - hide for step 0 */}
+        {step > 0 && (
+          <div className="flex gap-2">
             <Button
               type="button"
               variant="outline"
@@ -805,28 +921,28 @@ export default function OnboardingPage() {
               <ChevronLeft className="mr-2 h-4 w-4" />
               이전
             </Button>
-          )}
-          <Button
-            type="button"
-            className="flex-1"
-            onClick={handleNext}
-            disabled={!canProceed() || isLoading}
-          >
-            {isLoading ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                가입 중...
-              </>
-            ) : step === totalSteps ? (
-              '가입 완료'
-            ) : (
-              <>
-                다음
-                <ChevronRight className="ml-2 h-4 w-4" />
-              </>
-            )}
-          </Button>
-        </div>
+            <Button
+              type="button"
+              className="flex-1"
+              onClick={handleNext}
+              disabled={!canProceed() || isLoading}
+            >
+              {isLoading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  가입 중...
+                </>
+              ) : step === totalSteps ? (
+                '가입 완료'
+              ) : (
+                <>
+                  다음
+                  <ChevronRight className="ml-2 h-4 w-4" />
+                </>
+              )}
+            </Button>
+          </div>
+        )}
 
         {/* Login link */}
         <p className="text-center text-sm text-muted-foreground">

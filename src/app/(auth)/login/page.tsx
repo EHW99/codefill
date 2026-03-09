@@ -340,15 +340,7 @@ function LoginPageContent() {
           </div>
 
           <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <Label htmlFor="password">비밀번호</Label>
-              <Link
-                href="/forgot-password"
-                className="text-xs text-muted-foreground hover:text-primary"
-              >
-                비밀번호를 잊으셨나요?
-              </Link>
-            </div>
+            <Label htmlFor="password">비밀번호</Label>
             <div className="relative">
               <Input
                 id="password"
