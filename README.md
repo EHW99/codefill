@@ -1,4 +1,4 @@
-# {>} CodeFill
+# {} CodeFill
 
 **AI 기반 인터랙티브 코딩 학습 플랫폼**
 
