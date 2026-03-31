@@ -18,8 +18,8 @@ from ..config import get_settings
 
 logger = logging.getLogger(__name__)
 
-# Gemini 모델 키 목록 (이 모델들은 GeminiService로 라우팅)
-GEMINI_MODEL_KEYS = {"gemini-flash", "gemini-3-flash-preview", "gemini-3-pro-preview", "gemini-3-pro"}
+# Gemini 모델 키 목록 (비어있으면 모든 Gemini 모델이 OpenRouter 경유)
+GEMINI_MODEL_KEYS = set()
 
 
 class OpenRouterService:
