@@ -99,7 +99,7 @@ jobs:
       - name: Allow SSH from GitHub Actions
         run: |
           aws ec2 authorize-security-group-ingress \
-            --group-id sg-03d855a4b52de5086 \
+            --group-id ${{ secrets.AWS_SECURITY_GROUP_ID }} \
             --protocol tcp \
             --port 22 \
             --cidr ${{ steps.ip.outputs.ipv4 }}/32 \
@@ -181,7 +181,7 @@ jobs:
         if: always()
         run: |
           aws ec2 revoke-security-group-ingress \
-            --group-id sg-03d855a4b52de5086 \
+            --group-id ${{ secrets.AWS_SECURITY_GROUP_ID }} \
             --protocol tcp \
             --port 22 \
             --cidr ${{ steps.ip.outputs.ipv4 }}/32 || true
@@ -205,7 +205,7 @@ jobs:
       - name: Allow SSH from GitHub Actions
         run: |
           aws ec2 authorize-security-group-ingress \
-            --group-id sg-03d855a4b52de5086 \
+            --group-id ${{ secrets.AWS_SECURITY_GROUP_ID }} \
             --protocol tcp \
             --port 22 \
             --cidr ${{ steps.ip.outputs.ipv4 }}/32 \
@@ -251,7 +251,7 @@ jobs:
         if: always()
         run: |
           aws ec2 revoke-security-group-ingress \
-            --group-id sg-03d855a4b52de5086 \
+            --group-id ${{ secrets.AWS_SECURITY_GROUP_ID }} \
             --protocol tcp \
             --port 22 \
             --cidr ${{ steps.ip.outputs.ipv4 }}/32 || true

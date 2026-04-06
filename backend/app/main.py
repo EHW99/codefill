@@ -140,8 +140,9 @@ AI 기반 능동적 코딩 학습 플랫폼 API입니다.
 `Authorization: Bearer <token>` 헤더를 포함해주세요.
     """,
     lifespan=lifespan,
-    docs_url="/docs",
-    redoc_url="/redoc",
+    docs_url="/docs" if settings.debug else None,
+    redoc_url="/redoc" if settings.debug else None,
+    openapi_url="/openapi.json" if settings.debug else None,
     openapi_tags=[
         {"name": "Authentication", "description": "사용자 인증 및 OAuth"},
         {"name": "Users", "description": "사용자 프로필 및 설정"},
@@ -174,8 +175,8 @@ app.add_middleware(
         "http://127.0.0.1:3000",
     ],
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["Content-Type", "Authorization", "Accept", "Accept-Language"],
 )
 
 # Include routers
