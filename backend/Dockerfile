@@ -13,8 +13,14 @@ RUN apt-get update && apt-get install -y \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
+# 비루트 사용자 생성
+RUN groupadd -r appuser && useradd -r -g appuser appuser
+
 # 애플리케이션 코드
-COPY . .
+COPY --chown=appuser:appuser . .
+
+# 비루트 사용자로 전환
+USER appuser
 
 # 포트 노출
 EXPOSE 8000
