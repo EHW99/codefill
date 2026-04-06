@@ -92,6 +92,19 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
+      - name: Get GitHub Actions IP
+        id: ip
+        uses: haythem/public-ip@v1.3
+
+      - name: Allow SSH from GitHub Actions
+        run: |
+          aws ec2 authorize-security-group-ingress \
+            --group-id sg-03d855a4b52de5086 \
+            --protocol tcp \
+            --port 22 \
+            --cidr ${{ steps.ip.outputs.ipv4 }}/32 \
+            --tag-specifications 'ResourceType=security-group-rule,Tags=[{Key=Name,Value=github-actions-temp}]'
+
       - name: Login to Amazon ECR
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
@@ -164,6 +177,15 @@ jobs:
 
             echo "Backend deployment completed!"
 
+      - name: Remove GitHub Actions IP from SG
+        if: always()
+        run: |
+          aws ec2 revoke-security-group-ingress \
+            --group-id sg-03d855a4b52de5086 \
+            --protocol tcp \
+            --port 22 \
+            --cidr ${{ steps.ip.outputs.ipv4 }}/32 || true
+
   # Frontend EC2 배포
   deploy-frontend:
     runs-on: ubuntu-latest
@@ -175,6 +197,19 @@ jobs:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
+
+      - name: Get GitHub Actions IP
+        id: ip
+        uses: haythem/public-ip@v1.3
+
+      - name: Allow SSH from GitHub Actions
+        run: |
+          aws ec2 authorize-security-group-ingress \
+            --group-id sg-03d855a4b52de5086 \
+            --protocol tcp \
+            --port 22 \
+            --cidr ${{ steps.ip.outputs.ipv4 }}/32 \
+            --tag-specifications 'ResourceType=security-group-rule,Tags=[{Key=Name,Value=github-actions-temp}]'
 
       - name: Login to Amazon ECR
         id: login-ecr
@@ -211,3 +246,12 @@ jobs:
             docker image prune -af --filter "until=24h"
 
             echo "Frontend deployment completed!"
+
+      - name: Remove GitHub Actions IP from SG
+        if: always()
+        run: |
+          aws ec2 revoke-security-group-ingress \
+            --group-id sg-03d855a4b52de5086 \
+            --protocol tcp \
+            --port 22 \
+            --cidr ${{ steps.ip.outputs.ipv4 }}/32 || true
