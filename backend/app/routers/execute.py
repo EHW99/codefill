@@ -5,7 +5,7 @@ Judge0 API를 통한 코드 실행 엔드포인트
 """
 
 from fastapi import APIRouter, HTTPException, status
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, validator
 from typing import Optional, List, Any
 
 from ..services.judge0 import (
@@ -25,14 +25,23 @@ router = APIRouter()
 # ===========================================
 
 
+ALLOWED_LANGUAGES = {"python", "python3", "javascript", "java", "cpp", "c", "typescript", "go", "rust", "ruby"}
+
+
 class ExecuteCodeRequest(BaseModel):
     """코드 실행 요청"""
-    source_code: str = Field(..., description="실행할 소스 코드")
-    language: str = Field(..., description="프로그래밍 언어 (python, javascript, java, cpp 등)")
-    stdin: str = Field(default="", description="표준 입력")
-    expected_output: Optional[str] = Field(default=None, description="예상 출력 (채점용)")
+    source_code: str = Field(..., max_length=100000, description="실행할 소스 코드")
+    language: str = Field(..., max_length=20, description="프로그래밍 언어 (python, javascript, java, cpp 등)")
+    stdin: str = Field(default="", max_length=10000, description="표준 입력")
+    expected_output: Optional[str] = Field(default=None, max_length=10000, description="예상 출력 (채점용)")
     cpu_time_limit: float = Field(default=5.0, ge=0.1, le=15.0, description="CPU 시간 제한 (초)")
     memory_limit: int = Field(default=128000, ge=1000, le=512000, description="메모리 제한 (KB)")
+
+    @validator('language')
+    def validate_language(cls, v):
+        if v.lower() not in ALLOWED_LANGUAGES:
+            raise ValueError(f'지원하지 않는 언어: {v}')
+        return v.lower()
 
 
 class TestCase(BaseModel):
@@ -44,9 +53,15 @@ class TestCase(BaseModel):
 
 class RunTestsRequest(BaseModel):
     """테스트 케이스 실행 요청"""
-    source_code: str = Field(..., description="실행할 소스 코드")
-    language: str = Field(..., description="프로그래밍 언어")
-    test_cases: List[TestCase] = Field(..., description="테스트 케이스 목록")
+    source_code: str = Field(..., max_length=100000, description="실행할 소스 코드")
+    language: str = Field(..., max_length=20, description="프로그래밍 언어")
+    test_cases: List[TestCase] = Field(..., max_length=50, description="테스트 케이스 목록")
+
+    @validator('language')
+    def validate_language(cls, v):
+        if v.lower() not in ALLOWED_LANGUAGES:
+            raise ValueError(f'지원하지 않는 언어: {v}')
+        return v.lower()
 
 
 class ExecutionStatus(BaseModel):

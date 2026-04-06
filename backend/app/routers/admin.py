@@ -12,8 +12,15 @@ from typing import Optional, List
 from uuid import UUID, uuid4
 from datetime import datetime, timedelta
 
+import re
+
 from ..database import get_db
 from ..dependencies import get_current_admin_user
+
+
+def _sanitize_search(value: str) -> str:
+    """PostgREST 연산자 인젝션 방지를 위한 검색어 sanitize"""
+    return re.sub(r'[^a-zA-Z0-9가-힣@._\-\s]', '', value)[:100]
 from ..models.admin import (
     # Users
     AdminUserListResponse,
@@ -115,6 +122,7 @@ async def list_users(
     """관리자: 사용자 목록 조회"""
     try:
         now = datetime.utcnow().isoformat()
+        safe_search = _sanitize_search(search) if search else None
 
         # 전체 개수 조회
         count_query = db.table("users").select("id", count="exact")
@@ -124,8 +132,8 @@ async def list_users(
             count_query = count_query.or_(f"banned_until.is.null,banned_until.lt.{now}")
         if role:
             count_query = count_query.eq("role", role)
-        if search:
-            count_query = count_query.or_(f"email.ilike.%{search}%,name.ilike.%{search}%")
+        if safe_search:
+            count_query = count_query.or_(f"email.ilike.%{safe_search}%,name.ilike.%{safe_search}%")
 
         count_result = count_query.execute()
         total = count_result.count or 0
@@ -140,8 +148,8 @@ async def list_users(
             query = query.or_(f"banned_until.is.null,banned_until.lt.{now}")
         if role:
             query = query.eq("role", role)
-        if search:
-            query = query.or_(f"email.ilike.%{search}%,name.ilike.%{search}%")
+        if safe_search:
+            query = query.or_(f"email.ilike.%{safe_search}%,name.ilike.%{safe_search}%")
 
         # 페이지네이션
         offset = (page - 1) * limit
@@ -518,6 +526,8 @@ async def list_problems(
 ):
     """관리자: 문제 목록 조회"""
     try:
+        safe_search = _sanitize_search(search) if search else None
+
         # 전체 개수 조회
         count_query = db.table("base_problems").select("id", count="exact")
 
@@ -527,8 +537,8 @@ async def list_problems(
             count_query = count_query.eq("difficulty", difficulty)
         if source:
             count_query = count_query.eq("source", source)
-        if search:
-            count_query = count_query.or_(f"name.ilike.%{search}%,original_id.ilike.%{search}%")
+        if safe_search:
+            count_query = count_query.or_(f"name.ilike.%{safe_search}%,original_id.ilike.%{safe_search}%")
 
         count_result = count_query.execute()
         total = count_result.count or 0
@@ -544,8 +554,8 @@ async def list_problems(
             query = query.eq("difficulty", difficulty)
         if source:
             query = query.eq("source", source)
-        if search:
-            query = query.or_(f"name.ilike.%{search}%,original_id.ilike.%{search}%")
+        if safe_search:
+            query = query.or_(f"name.ilike.%{safe_search}%,original_id.ilike.%{safe_search}%")
 
         # 페이지네이션
         offset = (page - 1) * limit

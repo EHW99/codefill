@@ -7,10 +7,14 @@ _env_local = _base_dir / ".env.local"
 _env_default = _base_dir / ".env"
 load_dotenv(_env_local if _env_local.exists() else _env_default)
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from contextlib import asynccontextmanager
 import asyncio
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 
 from .config import get_settings, setup_logging, get_logger
 from .routers import auth, users, problems, practice, chat, execute, translate, farm, agent, solutions, friends, ws, shop, placement, solvedac, analysis, ranking, missions, admin, langsmith
@@ -165,6 +169,11 @@ AI 기반 능동적 코딩 학습 플랫폼 API입니다.
         {"name": "Admin", "description": "관리자 기능"},
     ],
 )
+
+# Rate Limiting
+limiter = Limiter(key_func=get_remote_address, default_limits=["60/minute"])
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # CORS middleware
 app.add_middleware(
