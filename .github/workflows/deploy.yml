@@ -94,7 +94,7 @@ jobs:
 
       - name: Get GitHub Actions IP
         id: ip
-        uses: haythem/public-ip@v1.3
+        run: echo "ipv4=$(curl -s https://ifconfig.me)" >> $GITHUB_OUTPUT
 
       - name: Allow SSH from GitHub Actions
         run: |
@@ -200,7 +200,7 @@ jobs:
 
       - name: Get GitHub Actions IP
         id: ip
-        uses: haythem/public-ip@v1.3
+        run: echo "ipv4=$(curl -s https://ifconfig.me)" >> $GITHUB_OUTPUT
 
       - name: Allow SSH from GitHub Actions
         run: |
