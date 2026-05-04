@@ -1,8 +1,9 @@
-name: Deploy to AWS
+name: Deploy to AWS (single EC2 + Caddy)
 
 on:
   push:
     branches: [deploy]
+  workflow_dispatch:
 
 env:
   AWS_REGION: ap-northeast-2
@@ -10,29 +11,19 @@ env:
   ECR_REPOSITORY_FRONTEND: codefill-frontend
 
 jobs:
-  # Backend 빌드 & 푸시
   build-backend:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
+      - uses: actions/checkout@v4
+      - uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
-
-      - name: Login to Amazon ECR
-        id: login-ecr
+      - id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Build and push backend image
-        uses: docker/build-push-action@v5
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v5
         with:
           context: ./backend
           push: true
@@ -42,29 +33,19 @@ jobs:
           cache-from: type=gha,scope=backend
           cache-to: type=gha,mode=max,scope=backend
 
-  # Frontend 빌드 & 푸시
   build-frontend:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
+      - uses: actions/checkout@v4
+      - uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
-
-      - name: Login to Amazon ECR
-        id: login-ecr
+      - id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Build and push frontend image
-        uses: docker/build-push-action@v5
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v5
         with:
           context: .
           push: true
@@ -80,20 +61,17 @@ jobs:
           cache-from: type=gha,scope=frontend
           cache-to: type=gha,mode=max,scope=frontend
 
-  # Backend EC2 배포
-  deploy-backend:
+  deploy:
     runs-on: ubuntu-latest
-    needs: [build-backend]
+    needs: [build-backend, build-frontend]
     steps:
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
+      - uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Get GitHub Actions IP
-        id: ip
+      - id: ip
         run: echo "ipv4=$(curl -s https://ifconfig.me)" >> $GITHUB_OUTPUT
 
       - name: Allow SSH from GitHub Actions
@@ -105,11 +83,10 @@ jobs:
             --cidr ${{ steps.ip.outputs.ipv4 }}/32 \
             --tag-specifications 'ResourceType=security-group-rule,Tags=[{Key=Name,Value=github-actions-temp}]' || true
 
-      - name: Login to Amazon ECR
-        id: login-ecr
+      - id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Deploy Backend to EC2
+      - name: Deploy to EC2
         uses: appleboy/ssh-action@v1.0.3
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
@@ -117,137 +94,130 @@ jobs:
           host: ${{ secrets.EC2_HOST_BACKEND }}
           username: ${{ secrets.EC2_USERNAME }}
           key: ${{ secrets.EC2_SSH_KEY }}
-          envs: ECR_REGISTRY,ECR_REPOSITORY_BACKEND
+          envs: ECR_REGISTRY
           script: |
-            # ECR 로그인
-            aws ecr get-login-password --region ap-northeast-2 | docker login --username AWS --password-stdin $ECR_REGISTRY
+            set -e
+            mkdir -p ~/codefill
+            cd ~/codefill
 
-            # 기존 컨테이너 정지 및 삭제
-            docker stop backend 2>/dev/null || true
-            docker rm backend 2>/dev/null || true
+            # ===== Caddyfile =====
+            cat > Caddyfile <<'CADDYEOF'
+            {
+                email djgusdn0415@gmail.com
+            }
 
-            # 최신 이미지 pull
-            docker pull $ECR_REGISTRY/$ECR_REPOSITORY_BACKEND:latest
+            codefill.site {
+                encode zstd gzip
+                reverse_proxy frontend:3000
+            }
 
-            # Backend 컨테이너 실행
-            docker run -d \
-              --name backend \
-              --restart unless-stopped \
-              -p 8000:8000 \
-              -e SUPABASE_URL="${{ secrets.SUPABASE_URL }}" \
-              -e SUPABASE_ANON_KEY="${{ secrets.SUPABASE_ANON_KEY }}" \
-              -e SUPABASE_SERVICE_ROLE_KEY="${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" \
-              -e JWT_SECRET="${{ secrets.JWT_SECRET }}" \
-              -e JWT_ALGORITHM="${{ secrets.JWT_ALGORITHM }}" \
-              -e ACCESS_TOKEN_EXPIRE_MINUTES="${{ secrets.ACCESS_TOKEN_EXPIRE_MINUTES }}" \
-              -e REFRESH_TOKEN_EXPIRE_DAYS="${{ secrets.REFRESH_TOKEN_EXPIRE_DAYS }}" \
-              -e FRONTEND_URL="${{ secrets.FRONTEND_URL }}" \
-              -e OPENROUTER_API_KEY="${{ secrets.OPENROUTER_API_KEY }}" \
-              -e GEMINI_API_KEYS="${{ secrets.GEMINI_API_KEYS }}" \
-              -e OPENAI_API_KEY="${{ secrets.OPENAI_API_KEY }}" \
-              -e DEBUG="${{ secrets.DEBUG }}" \
-              -e APP_NAME="${{ secrets.APP_NAME }}" \
-              -e APP_VERSION="${{ secrets.APP_VERSION }}" \
-              -e RATE_LIMIT_PER_MINUTE="${{ secrets.RATE_LIMIT_PER_MINUTE }}" \
-              -e KAKAO_CLIENT_ID="${{ secrets.KAKAO_CLIENT_ID }}" \
-              -e KAKAO_CLIENT_SECRET="${{ secrets.KAKAO_CLIENT_SECRET }}" \
-              -e KAKAO_REDIRECT_URI="${{ secrets.KAKAO_REDIRECT_URI }}" \
-              -e GOOGLE_CLIENT_ID="${{ secrets.GOOGLE_CLIENT_ID }}" \
-              -e GOOGLE_CLIENT_SECRET="${{ secrets.GOOGLE_CLIENT_SECRET }}" \
-              -e GOOGLE_REDIRECT_URI="${{ secrets.GOOGLE_REDIRECT_URI }}" \
-              -e GITHUB_CLIENT_ID="${{ secrets.GH_CLIENT_ID }}" \
-              -e GITHUB_CLIENT_SECRET="${{ secrets.GH_CLIENT_SECRET }}" \
-              -e GITHUB_REDIRECT_URI="${{ secrets.GH_REDIRECT_URI }}" \
-              -e JUDGE0_URL="${{ secrets.JUDGE0_URL }}" \
-              -e JUDGE0_API_KEY="${{ secrets.JUDGE0_API_KEY }}" \
-              -e JUDGE0_API_HOST="${{ secrets.JUDGE0_API_HOST }}" \
-              -e AZURE_TRANSLATOR_KEY="${{ secrets.AZURE_TRANSLATOR_KEY }}" \
-              -e AZURE_TRANSLATOR_REGION="${{ secrets.AZURE_TRANSLATOR_REGION }}" \
-              -e AZURE_TRANSLATOR_ENDPOINT="${{ secrets.AZURE_TRANSLATOR_ENDPOINT }}" \
-              -e DATABASE_URL="${{ secrets.DATABASE_URL }}" \
-              -e DIRECT_URL="${{ secrets.DIRECT_URL }}" \
-              -e LANGCHAIN_TRACING_V2="${{ secrets.LANGCHAIN_TRACING_V2 }}" \
-              -e LANGCHAIN_API_KEY="${{ secrets.LANGCHAIN_API_KEY }}" \
-              -e LANGCHAIN_PROJECT="${{ secrets.LANGCHAIN_PROJECT }}" \
-              -e CORS_ORIGINS="${{ secrets.CORS_ORIGINS }}" \
-              $ECR_REGISTRY/$ECR_REPOSITORY_BACKEND:latest
+            api.codefill.site {
+                encode zstd gzip
+                reverse_proxy backend:8000
+            }
+            CADDYEOF
 
-            # 오래된 이미지 정리
+            # ===== docker-compose.yml =====
+            cat > docker-compose.yml <<COMPOSEEOF
+            services:
+              caddy:
+                image: caddy:2-alpine
+                container_name: caddy
+                restart: unless-stopped
+                ports:
+                  - "80:80"
+                  - "443:443"
+                volumes:
+                  - ./Caddyfile:/etc/caddy/Caddyfile:ro
+                  - caddy_data:/data
+                  - caddy_config:/config
+                networks:
+                  - codefill-net
+                depends_on:
+                  - frontend
+                  - backend
+
+              frontend:
+                image: ${ECR_REGISTRY}/codefill-frontend:latest
+                container_name: frontend
+                restart: unless-stopped
+                networks:
+                  - codefill-net
+                expose:
+                  - "3000"
+
+              backend:
+                image: ${ECR_REGISTRY}/codefill-backend:latest
+                container_name: backend
+                restart: unless-stopped
+                env_file:
+                  - ./backend.env
+                networks:
+                  - codefill-net
+                expose:
+                  - "8000"
+
+            networks:
+              codefill-net:
+                driver: bridge
+
+            volumes:
+              caddy_data:
+              caddy_config:
+            COMPOSEEOF
+
+            # ===== backend.env (모든 시크릿) =====
+            cat > backend.env <<'ENVEOF'
+            SUPABASE_URL=${{ secrets.SUPABASE_URL }}
+            SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }}
+            SUPABASE_SERVICE_ROLE_KEY=${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+            JWT_SECRET=${{ secrets.JWT_SECRET }}
+            JWT_ALGORITHM=${{ secrets.JWT_ALGORITHM }}
+            ACCESS_TOKEN_EXPIRE_MINUTES=${{ secrets.ACCESS_TOKEN_EXPIRE_MINUTES }}
+            REFRESH_TOKEN_EXPIRE_DAYS=${{ secrets.REFRESH_TOKEN_EXPIRE_DAYS }}
+            FRONTEND_URL=${{ secrets.FRONTEND_URL }}
+            CORS_ORIGINS=${{ secrets.CORS_ORIGINS }}
+            OPENROUTER_API_KEY=${{ secrets.OPENROUTER_API_KEY }}
+            OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
+            GEMINI_API_KEYS=${{ secrets.GEMINI_API_KEYS }}
+            DEBUG=false
+            APP_NAME=${{ secrets.APP_NAME }}
+            APP_VERSION=${{ secrets.APP_VERSION }}
+            RATE_LIMIT_PER_MINUTE=${{ secrets.RATE_LIMIT_PER_MINUTE }}
+            KAKAO_CLIENT_ID=${{ secrets.KAKAO_CLIENT_ID }}
+            KAKAO_CLIENT_SECRET=${{ secrets.KAKAO_CLIENT_SECRET }}
+            KAKAO_REDIRECT_URI=${{ secrets.KAKAO_REDIRECT_URI }}
+            GOOGLE_CLIENT_ID=${{ secrets.GOOGLE_CLIENT_ID }}
+            GOOGLE_CLIENT_SECRET=${{ secrets.GOOGLE_CLIENT_SECRET }}
+            GOOGLE_REDIRECT_URI=${{ secrets.GOOGLE_REDIRECT_URI }}
+            GITHUB_CLIENT_ID=${{ secrets.GH_CLIENT_ID }}
+            GITHUB_CLIENT_SECRET=${{ secrets.GH_CLIENT_SECRET }}
+            GITHUB_REDIRECT_URI=${{ secrets.GH_REDIRECT_URI }}
+            JUDGE0_URL=${{ secrets.JUDGE0_URL }}
+            JUDGE0_API_KEY=${{ secrets.JUDGE0_API_KEY }}
+            JUDGE0_API_HOST=${{ secrets.JUDGE0_API_HOST }}
+            AZURE_TRANSLATOR_KEY=${{ secrets.AZURE_TRANSLATOR_KEY }}
+            AZURE_TRANSLATOR_REGION=${{ secrets.AZURE_TRANSLATOR_REGION }}
+            AZURE_TRANSLATOR_ENDPOINT=${{ secrets.AZURE_TRANSLATOR_ENDPOINT }}
+            LANGCHAIN_TRACING_V2=${{ secrets.LANGCHAIN_TRACING_V2 }}
+            LANGCHAIN_API_KEY=${{ secrets.LANGCHAIN_API_KEY }}
+            LANGCHAIN_PROJECT=${{ secrets.LANGCHAIN_PROJECT }}
+            ENVEOF
+
+            # ===== ECR 로그인 =====
+            aws ecr get-login-password --region ap-northeast-2 | \
+              docker login --username AWS --password-stdin ${ECR_REGISTRY}
+
+            # ===== pull + up =====
+            docker compose pull
+            docker compose up -d --remove-orphans
+
+            # ===== 정리 =====
             docker image prune -af --filter "until=24h"
 
-            echo "Backend deployment completed!"
+            echo "Deploy completed"
 
-      - name: Remove GitHub Actions IP from SG
-        if: always()
-        run: |
-          aws ec2 revoke-security-group-ingress \
-            --group-id ${{ secrets.AWS_SECURITY_GROUP_ID }} \
-            --protocol tcp \
-            --port 22 \
-            --cidr ${{ steps.ip.outputs.ipv4 }}/32 || true
-
-  # Frontend EC2 배포
-  deploy-frontend:
-    runs-on: ubuntu-latest
-    needs: [build-frontend]
-    steps:
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ env.AWS_REGION }}
-
-      - name: Get GitHub Actions IP
-        id: ip
-        run: echo "ipv4=$(curl -s https://ifconfig.me)" >> $GITHUB_OUTPUT
-
-      - name: Allow SSH from GitHub Actions
-        run: |
-          aws ec2 authorize-security-group-ingress \
-            --group-id ${{ secrets.AWS_SECURITY_GROUP_ID }} \
-            --protocol tcp \
-            --port 22 \
-            --cidr ${{ steps.ip.outputs.ipv4 }}/32 \
-            --tag-specifications 'ResourceType=security-group-rule,Tags=[{Key=Name,Value=github-actions-temp}]' || true
-
-      - name: Login to Amazon ECR
-        id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v2
-
-      - name: Deploy Frontend to EC2
-        uses: appleboy/ssh-action@v1.0.3
-        env:
-          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-        with:
-          host: ${{ secrets.EC2_HOST_FRONTEND }}
-          username: ${{ secrets.EC2_USERNAME }}
-          key: ${{ secrets.EC2_SSH_KEY }}
-          envs: ECR_REGISTRY,ECR_REPOSITORY_FRONTEND
-          script: |
-            # ECR 로그인
-            aws ecr get-login-password --region ap-northeast-2 | docker login --username AWS --password-stdin $ECR_REGISTRY
-
-            # 기존 컨테이너 정지 및 삭제
-            docker stop codefill-frontend 2>/dev/null || true
-            docker rm codefill-frontend 2>/dev/null || true
-
-            # 최신 이미지 pull
-            docker pull $ECR_REGISTRY/$ECR_REPOSITORY_FRONTEND:latest
-
-            # Frontend 컨테이너 실행
-            docker run -d \
-              --name codefill-frontend \
-              --restart unless-stopped \
-              -p 3000:3000 \
-              $ECR_REGISTRY/$ECR_REPOSITORY_FRONTEND:latest
-
-            # 오래된 이미지 정리
-            docker image prune -af --filter "until=24h"
-
-            echo "Frontend deployment completed!"
-
-      - name: Remove GitHub Actions IP from SG
+      - name: Remove SSH allow
         if: always()
         run: |
           aws ec2 revoke-security-group-ingress \
