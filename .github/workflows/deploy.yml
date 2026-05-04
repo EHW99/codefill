@@ -132,6 +132,21 @@ jobs:
             }
             CADDYEOF
 
+            # ===== judge0.conf =====
+            cat > judge0.conf <<'JUDGE0EOF'
+            AUTHN_HEADER=X-Auth-Token
+            AUTHN_TOKEN=${{ secrets.JUDGE0_API_KEY }}
+            REDIS_HOST=judge0-redis
+            REDIS_PORT=6379
+            REDIS_PASSWORD=${{ secrets.JUDGE0_REDIS_PASSWORD }}
+            POSTGRES_HOST=judge0-db
+            POSTGRES_PORT=5432
+            POSTGRES_DB=judge0
+            POSTGRES_USER=judge0
+            POSTGRES_PASSWORD=${{ secrets.JUDGE0_DB_PASSWORD }}
+            ENABLE_WAIT_RESULT=true
+            JUDGE0EOF
+
             # ===== docker-compose.yml =====
             cat > docker-compose.yml <<COMPOSEEOF
             services:
@@ -171,6 +186,58 @@ jobs:
                   - codefill-net
                 expose:
                   - "8000"
+                depends_on:
+                  - judge0-server
+
+              judge0-server:
+                image: judge0/judge0:1.13.1
+                container_name: judge0-server
+                restart: unless-stopped
+                privileged: true
+                volumes:
+                  - ./judge0.conf:/judge0.conf:ro
+                networks:
+                  - codefill-net
+                expose:
+                  - "2358"
+                depends_on:
+                  - judge0-db
+                  - judge0-redis
+
+              judge0-worker:
+                image: judge0/judge0:1.13.1
+                container_name: judge0-worker
+                restart: unless-stopped
+                privileged: true
+                command: ["./scripts/workers"]
+                volumes:
+                  - ./judge0.conf:/judge0.conf:ro
+                networks:
+                  - codefill-net
+                depends_on:
+                  - judge0-db
+                  - judge0-redis
+
+              judge0-db:
+                image: postgres:16.2
+                container_name: judge0-db
+                restart: unless-stopped
+                env_file:
+                  - ./judge0.conf
+                volumes:
+                  - judge0_data:/var/lib/postgresql/data
+                networks:
+                  - codefill-net
+
+              judge0-redis:
+                image: redis:7.2.4
+                container_name: judge0-redis
+                restart: unless-stopped
+                command: ["bash", "-c", 'docker-entrypoint.sh --appendonly no --requirepass "\$\$REDIS_PASSWORD"']
+                env_file:
+                  - ./judge0.conf
+                networks:
+                  - codefill-net
 
             networks:
               codefill-net:
@@ -179,6 +246,7 @@ jobs:
             volumes:
               caddy_data:
               caddy_config:
+              judge0_data:
             COMPOSEEOF
 
             # ===== backend.env (모든 시크릿) =====
@@ -208,9 +276,9 @@ jobs:
             GITHUB_CLIENT_ID=${{ secrets.GH_CLIENT_ID }}
             GITHUB_CLIENT_SECRET=${{ secrets.GH_CLIENT_SECRET }}
             GITHUB_REDIRECT_URI=${{ secrets.GH_REDIRECT_URI }}
-            JUDGE0_URL=${{ secrets.JUDGE0_URL }}
+            JUDGE0_URL=http://judge0-server:2358
             JUDGE0_API_KEY=${{ secrets.JUDGE0_API_KEY }}
-            JUDGE0_API_HOST=${{ secrets.JUDGE0_API_HOST }}
+            JUDGE0_API_HOST=
             AZURE_TRANSLATOR_KEY=${{ secrets.AZURE_TRANSLATOR_KEY }}
             AZURE_TRANSLATOR_REGION=${{ secrets.AZURE_TRANSLATOR_REGION }}
             AZURE_TRANSLATOR_ENDPOINT=${{ secrets.AZURE_TRANSLATOR_ENDPOINT }}
