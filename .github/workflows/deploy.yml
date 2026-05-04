@@ -104,14 +104,29 @@ jobs:
             cat > Caddyfile <<'CADDYEOF'
             {
                 email djgusdn0415@gmail.com
+                servers {
+                    trusted_proxies static private_ranges
+                }
+            }
+
+            (security_headers) {
+                header {
+                    Strict-Transport-Security "max-age=31536000; includeSubDomains"
+                    X-Content-Type-Options "nosniff"
+                    X-Frame-Options "SAMEORIGIN"
+                    Referrer-Policy "strict-origin-when-cross-origin"
+                    -Server
+                }
             }
 
             codefill.site {
+                import security_headers
                 encode zstd gzip
                 reverse_proxy frontend:3000
             }
 
             api.codefill.site {
+                import security_headers
                 encode zstd gzip
                 reverse_proxy backend:8000
             }
